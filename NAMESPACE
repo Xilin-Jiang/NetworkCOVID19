@@ -2,6 +2,7 @@
 
 export("%>%")
 export(init_para)
+export(network_generate)
 import(ergm)
 import(ergm.ego)
 import(stats)

@@ -38,7 +38,7 @@ NULL
 #' @param country_id 1 stands for Uganda demographic
 #' @param social_distancing_flg 1 stands for no social distancing
 #'
-#' @return
+#' @return a list contains all parameters at default setting for each scenatrio
 #' @export
 #'
 #' @examples # initialise a normal para <- init_para()
@@ -183,6 +183,18 @@ init_para <- function(setting = 2, country_id = 1, social_distancing_flg = 1){
 ###############################################
 # generate the contact network
 ###############################################
+#' Simulate synthetic population estimate ERGM contact networks.
+#'
+#' @param para list contains all parameter, which should be from the function init_para; the paramter settings could be modified at this stage
+#' @param output character string for the function to save the output into. The function will create and save results into "Networks" directory.
+#' @param searched_clustering_number a parameter determin the strength of clustering within the population. Should use default setting unless
+#' for very specific testing session (e.g. simulating lockdown scenario where there is no contact except designated shopping time)
+#'
+#' @return a list of two object: first is an ERGM object which could be used to simulate contact networks; second is a para object which was updated
+#' with the synthetic population age and family information.
+#' @export
+#'
+#' @examples
 network_generate <- function(para, output = "example", searched_clustering_number = 4){
   para_ego <- para
   para_ego$pop_sz <- para$ego.pop_sz
@@ -335,6 +347,18 @@ R0_adjust <- function(para){
 ###############################################
 # wrapper for transmission simulation
 ###############################################
+#' Title
+#'
+#' @param NW_SIM A list of two object, which is the output of network_generate function.
+#' @param input_location A file location to read the NW_SIM object.
+#' @param PCR logical True means PCR test is deployed for the containment
+#' @param RDT logical True means rapid diagnostic tests are deployed for the containment
+#' @param len_sim numeric number of days to simulate for the outbreak, default 100.
+#'
+#' @return a dataframe contains the simulated results.
+#' @export
+#'
+#' @examples
 simulate_transmission <- function(NW_SIM = NA, input_location = "Networks/example.network.Rdata", PCR = F, RDT = F, len_sim = 100){
   if(is.na(NW_SIM)){
     if(stringr::str_detect(input_location, ".network.Rdata")){

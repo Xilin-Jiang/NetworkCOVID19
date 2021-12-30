@@ -1,0 +1,27 @@
+Package: NetworkCOVID19
+Title: Simulating Infectious Disease Transmission in Invidual Networks
+Version: 0.0.0.9000
+Authors@R: 
+    person("Xilin", "Jiang", , "xilinjiang@hsph.harvard.edu", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0001-6773-9182"))
+Description: Constructing synthetic population network by specified age distribution, contact frequency and household structures. The package allows 
+  dynamic simulation of contact networks and disease trasmission in the synthetic population. Applicaiton of the package to COVID-19 modelling for Low- 
+  and middle- income coountries (LMICs) is presented in Jiang et al 2021 MedRxiv -- Modelling the impact of rapid tests, tracing and distancing in 
+  lower-income countries suggest optimal policies varies with rural-urban settings.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.1.2
+Imports: 
+    dplyr,
+    ergm (<= 3.11.0),
+    ergm.ego,
+    magrittr,
+    network,
+    reshape2
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Depends: 
+    R (>= 2.10)
+LazyData: true

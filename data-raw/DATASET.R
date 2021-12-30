@@ -54,4 +54,4 @@ for(country_id in 1:4){
   }
 }
 
-usethis::use_data(contact_all, contact_home, overwrite = TRUE)
+usethis::use_data(contact_all, contact_home, internal = TRUE)

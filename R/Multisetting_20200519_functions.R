@@ -141,6 +141,8 @@ init_para <- function(setting = 2, country_id = 1, social_distancing_flg = 1){
   # subclinical rate
   para$sub_clini_rate <- 0.3
   para$asym_rate <- 0.2 # transmission rate of asymptomatic patient
+  para$death_rate <- c(0.002,0.002,0.01)
+  para$death_delay <- 10
 
   # Parameters about Infected pts
   para$ab_test_rate <- 0.7 # % accepted ab testing among detected (symptomatic) patients
@@ -433,11 +435,15 @@ simulate_transmission <- function(NW_SIM = NA, input_location = "Networks/exampl
     rdt[t] <- RDT_n
     pcr[t] <- PCR_n
   }
-  rt <- rep(NA, len_sim)
+  Rt <- rep(NA, len_sim)
+  death <- rep(0, len_sim)
   for(t in 1:len_sim){
     i <- I_lst[[t]]
     idx <- which(i == 2) # from the second day they are infectious
-    if(length(idx)) rt[t] <- mean(trace_inf_n[idx])
+    if(length(idx)) Rt[t] <- mean(trace_inf_n[idx])
+    # compute death
+    death_case <- which(i == para$death_delay)
+    if(length(death_case)) death[t] <- sum(runif(length(death_case)) < para$death_rate[para$AGE[death_case]])
   }
   # plot the daily new case
   ab_new_daily <- rep(NA, len_sim)
@@ -448,7 +454,7 @@ simulate_transmission <- function(NW_SIM = NA, input_location = "Networks/exampl
     ab_new_daily[t] <- sum(is.na(I_lst[[t-1]]))  - sum(is.na(I_lst[[t]]))
     cap[t] <- sum(!is.na(Q_lst[[t]]) & Q_lst[[t]] < 14)
   }
-  return(data.frame(new_daily_case = ab_new_daily, quarantine_daily = cap, Re_daily = rt, RDT_used = rdt, PCR_used = pcr))
+  return(data.frame(new_daily_case = ab_new_daily, quarantine_daily = cap, Re_daily = Rt, RDT_used = rdt, PCR_used = pcr, death_daily = death))
 
 }
 

@@ -14,7 +14,7 @@ test_that("loading default parameter setting for simulation", {
   nw <- network_generate(para)
   sim_rslt <- simulate_transmission(NW_SIM = nw)
   expect_equal(c(sum(sim_rslt$quarantine_daily), sum(sim_rslt$RDT_used), sum(sim_rslt$PCR_used)), c(0,0,0))
-  expect_equal(sum(sim_rslt$quarantine_daily) > 50, T)
+  expect_equal(sum(sim_rslt$death_daily) > 50, T)
 })
 
 

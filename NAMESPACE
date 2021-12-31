@@ -3,6 +3,7 @@
 export("%>%")
 export(init_para)
 export(network_generate)
+export(simulate_transmission)
 import(ergm)
 import(ergm.ego)
 import(stats)

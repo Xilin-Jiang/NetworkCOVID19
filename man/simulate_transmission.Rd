@@ -2,7 +2,7 @@
 % Please edit documentation in R/Multisetting_20200519_functions.R
 \name{simulate_transmission}
 \alias{simulate_transmission}
-\title{Title}
+\title{Simulate transmission using contact network.}
 \usage{
 simulate_transmission(
   NW_SIM = NA,
@@ -27,5 +27,8 @@ simulate_transmission(
 a dataframe contains the simulated results.
 }
 \description{
-Title
+Simulate transmission using contact network.
+}
+\examples{
+simulate_transmission(PCR = F, RDT = F) # simulate a transmission without any containment
 }

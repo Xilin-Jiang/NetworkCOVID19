@@ -21,3 +21,8 @@ with the synthetic population age and family information.
 \description{
 Simulate synthetic population estimate ERGM contact networks.
 }
+\examples{
+para <- init_para()
+nw <- network_generate(para)
+plot(simulate(nw[[1]]))
+}

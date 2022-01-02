@@ -196,7 +196,9 @@ init_para <- function(setting = 2, country_id = 1, social_distancing_flg = 1){
 #' with the synthetic population age and family information.
 #' @export
 #'
-#' @examples
+#' @examples para <- init_para()
+#' nw <- network_generate(para)
+#' plot(simulate(nw[[1]]))
 network_generate <- function(para, output = "example", searched_clustering_number = 4){
   para_ego <- para
   para_ego$pop_sz <- para$ego.pop_sz
@@ -349,7 +351,7 @@ R0_adjust <- function(para){
 ###############################################
 # wrapper for transmission simulation
 ###############################################
-#' Title
+#' Simulate transmission using contact network.
 #'
 #' @param NW_SIM A list of two object, which is the output of network_generate function.
 #' @param input_location A file location to read the NW_SIM object.
@@ -360,7 +362,7 @@ R0_adjust <- function(para){
 #' @return a dataframe contains the simulated results.
 #' @export
 #'
-#' @examples
+#' @examples simulate_transmission(PCR = F, RDT = F) # simulate a transmission without any containment
 simulate_transmission <- function(NW_SIM = NA, input_location = "Networks/example.network.Rdata", PCR = F, RDT = F, len_sim = 100){
   if(is.na(NW_SIM)){
     if(stringr::str_detect(input_location, ".network.Rdata")){

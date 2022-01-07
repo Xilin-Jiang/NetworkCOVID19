@@ -32,6 +32,118 @@ NULL
 #' @import ergm.ego
 NULL
 
+#' @param NW_SIM A list of two object, which is the output of network_generate function.
+#' @param input_location A file location to read the NW_SIM object.
+#' @param PCR logical True means PCR test is deployed for the containment
+#' @param RDT logical True means rapid diagnostic tests are deployed for the containment
+#' @param len_sim numeric number of days to simulate for the outbreak, default 100.
+
+
+#' wrapper function to simulate under four containment scenario, for multiple repeats
+#'
+#' @param rep_num numeric number of epidemic to simulate, >100 is recommended
+#' @param network_num numeric number of synthetic population to construct, could be less than rep_num to save time an space, the simulation
+#' will randomly sample one of the synthetic populations for each epidemic simulation
+#' @param output character prefix for saving the network data, you are encouraged to specify one otherwise default "example" will be used,
+#' potentially erasing previous analysis.
+#' @param para list of parameters. If you want to set up your own parameter, using init_para and modify the output.
+#' @param len_sim numeric number of days to simulate for the outbreak, default 100.
+#'
+#' @return list containing simulation results. Six fields are included: new_daily_case,  quarantine_daily, Re_daily, RDT_used, PCR_used,
+#' death_daily. each output is a list of four matrix, one row represent one simulation of epidemic: use [[1]] to access the results of
+#' baseline scenario without any containment; use [[2]] to access results of RDT containment; use [[3]] to access results of PCR containment;
+#' use [[4]] to access results of RDT + PCR containment.
+#' @export
+#'
+#' @examples
+network_covid_simulate <- function(rep_num = 1, network_num = 20, output = "example", para = NA, len_sim = 100) {
+  # this is a wrapper function for simulating
+  if(output == "example"){
+    print("Using 'example' as the output prefix, you are strongly recommended to specifiy a prefix for the ease of output analysis")
+  }else{
+    print(paste0("Using ", output, " as the output prefix."))
+  }
+  if(is.na(para)){
+    print(paste0("No population specified, using the default parameter setting"))
+    para <- para <- init_para()
+  }
+  print("---------------------------------------------")
+  print("-------- simulation settings ----------------")
+  print("---------------------------------------------")
+  print(paste0("Number of simulations: ",rep_num))
+  print(paste0("Population size: ",para$pop_sz))
+  print(paste0("Population age distribution: 0-14: ", para$age_dist[1]*100, "%;  15-24: ",
+               para$age_dist[2]*100,"%;  25+: ", para$age_dist[3]*100, "%"))
+  print(paste0("Household size distribution: 1: ", para$HH_dist[1]*100, "%;  2-3: ",
+               para$HH_dist[2]*100,"%;  4-5: ", para$HH_dist[3]*100, "%;  6+: ", para$HH_dist[4]*100, "%"))
+  print(paste0("Number of contact: ", para$num_cc))
+  print(paste0("Proportion of non-household contact reduced by physical distancing: ", (1-para$Non_HH_CC_rate)*100, "%"))
+  print(paste0("Initial cases: ", para$E_0))
+  print(paste0("R0: ", para$R0))
+
+  # generate networks
+  print("-----------------------------------------------------------")
+  print("-------- synthetic population simulation ------------------")
+  print("-----------------------------------------------------------")
+  for(nw_id in 1:network_num){
+    print(paste0("Generate network: ", nw_id))
+    network_generate(para, output = paste0(output, ".", nw_id) )
+  }
+  # simulate all four scenarios
+  print("-----------------------------------------------------------")
+  print("-------- transmission simulation --------------------------")
+  print("-----------------------------------------------------------")
+  new_daily_case <- list()
+  quarantine_daily <- list()
+  Re_daily <- list()
+  RDT_used <- list()
+  PCR_used <- list()
+  death_daily <- list()
+  for(sc in 1:4){ # save matrix for each scenario
+    new_daily_case[[sc]] <- matrix(nrow = rep_num, ncol = len_sim)
+    quarantine_daily[[sc]] <- matrix(nrow = rep_num, ncol = len_sim)
+    Re_daily[[sc]] <- matrix(nrow = rep_num, ncol = len_sim)
+    RDT_used[[sc]] <- matrix(nrow = rep_num, ncol = len_sim)
+    PCR_used[[sc]] <- matrix(nrow = rep_num, ncol = len_sim)
+    death_daily[[sc]] <- matrix(nrow = rep_num, ncol = len_sim)
+  }
+  for(rep_id in 1:rep_num){
+    NW_SIM <- NA
+    sim_rslt <- list()
+    while(is.na(NW_SIM)){
+      idx <- sample(1:network_num, 1)
+      load(paste0("Networks/", output, ".",idx, ".network.Rdata"))
+    }
+    sim_rslt[[1]] <- simulate_transmission(NW_SIM = NW_SIM, PCR = F, RDT = F, len_sim = len_sim)
+    print(paste0("No containment simulation: ", rep_id))
+    sim_rslt[[2]] <- simulate_transmission(NW_SIM = NW_SIM, PCR = F, RDT = T, len_sim = len_sim)
+    print(paste0("RDT containment simulation: ", rep_id))
+    sim_rslt[[3]] <- simulate_transmission(NW_SIM = NW_SIM, PCR = T, RDT = F, len_sim = len_sim)
+    print(paste0("PCR containment simulation: ", rep_id))
+    sim_rslt[[4]] <- simulate_transmission(NW_SIM = NW_SIM, PCR = T, RDT = T, len_sim = len_sim)
+    print(paste0("PCR & RDT containment simulation: ", rep_id))
+
+    for(sc in 1:4){ # save matrix for each scenario
+      new_daily_case[[sc]][rp, ] <- sim_rslt[[sc]]$new_daily_case
+      quarantine_daily[[sc]][rp, ] <- sim_rslt[[sc]]$quarantine_daily
+      Re_daily[[sc]][rp, ] <- sim_rslt[[sc]]$Re_daily
+      RDT_used[[sc]][rp, ] <- sim_rslt[[sc]]$RDT_used
+      PCR_used[[sc]][rp, ] <- sim_rslt[[sc]]$PCR_used
+      death_daily[[sc]][rp, ] <- sim_rslt[[sc]]$death_daily
+    }
+  }
+  results_four_strategy <- list()
+  results_four_strategy$new_daily_case <- new_daily_case
+  results_four_strategy$quarantine_daily <- quarantine_daily
+  results_four_strategy$Re_daily <- Re_daily
+  results_four_strategy$RDT_used <- RDT_used
+  results_four_strategy$PCR_used <- PCR_used
+  results_four_strategy$death_daily <- death_daily
+  return(results_four_strategy)
+}
+
+
+
 #' initiate default parameters for simulation
 #'
 #' @param setting integer. rural simulation; 2 for urban, 3 for slum
@@ -42,7 +154,7 @@ NULL
 #' @export
 #'
 #' @examples # initialise a normal para <- init_para()
-init_para <- function(setting = 2, country_id = 1, social_distancing_flg = 1){
+init_para <- function(setting = 2, country_id = 1, social_distancing_flg = 1, contact_number = NA){
   para <- list()
 
   ###############################
@@ -51,10 +163,10 @@ init_para <- function(setting = 2, country_id = 1, social_distancing_flg = 1){
   para$setting <- setting # 1=rural 2=affluent 3=slum
   # Environment setup
   para$pop_sz <- 1000 # 5000
-  para$ego.pop_sz <- 1000 # using 200 to fit the egocentric network
+  para$ego.pop_sz <- 500 # using 500 to fit the egocentric network (the sample size equal to the number of subjects in Uganda survey)
   para$Non_HH_CC_rate <- c(1,.8,.6,.4,.2)[social_distancing_flg]
   community_setting <- c("Rural", "Non-slum urban", "Slum")[setting]
-  print(paste0("Simulate ",para$pop_sz," individuals in ",community_setting," setting"))
+  # print(paste0("Simulate ",para$pop_sz," individuals in ",community_setting," setting"))
   ##########################################
   # loading country specific variables:
   # age distribution & household
@@ -94,6 +206,9 @@ init_para <- function(setting = 2, country_id = 1, social_distancing_flg = 1){
     para$percent_HH_cc <- .5
     para$HH_dist <- c(.00, .06, .17, .77) # afganistan
   }else print ("Parameter setting error")
+  # overun the contact number
+  if(! is.na(contact_number)) para$num_cc <- contact_number
+
   # load the contact structure
   para$age_mix <- contact_all[[country_id]]
   para$Home_age_mix <- contact_home[[country_id]]
@@ -182,6 +297,45 @@ init_para <- function(setting = 2, country_id = 1, social_distancing_flg = 1){
   return(para)
 }
 
+R0_adjust <- function(para){
+  #########################################################################
+  # adjust R0 using next generation matrix for 1) young people susceptibility 2) subclinical cases
+  #########################################################################
+  # ajust for R0
+  # norm1 <- (sum(para$age_mix) - para$age_mix[c(1)]/2- sum(para$age_mix[c(2,4)])/4)/sum(para$age_mix)
+  # using next generation matrix to compute norm1; only kept terms connected with young people susceptibility
+  Cyy <- para$age_mix[c(1)] # number of comtact for young <--> young
+  Coy <- sum(para$age_mix[c(2,4)]) # number of comtact for young <--> old
+  Coo <- sum(para$age_mix[c(3,5,6)]) # number of comtact for old <--> old
+  Ny <- para$age_dist[1] # number of young people, Cyy/Ny is the average number of young contact for a yong person
+  No <- sum(para$age_dist[c(2,3)]) # number of young people, Cyy/Ny is the average number of young contact for a yong person
+  y_sus <- 0.5 # susceptability of young person
+  NGM <- matrix(c(y_sus * Cyy/Ny,  Coy/Ny, y_sus * Coy/No, Coo/No) , nrow = 2)
+  trNGM <- sum(diag(NGM))
+  detNGM <- det(NGM)
+  Spectral_radius_half <- trNGM + (trNGM^2 - 4*detNGM )^0.5
+
+  y_sus <- 1 # susceptability of young person
+  NGM <- matrix(c(y_sus * Cyy/Ny,  Coy/Ny, y_sus * Coy/No, Coo/No) , nrow = 2)
+  trNGM <- sum(diag(NGM))
+  detNGM <- det(NGM)
+  Spectral_radius_1 <- trNGM + (trNGM^2 - 4*detNGM )^0.5
+
+  norm1 <- Spectral_radius_half/Spectral_radius_1
+  # norm2 account for the redution of the low transmission rate of asymptomatic cases
+  norm2 <- 1 - para$sub_clini_rate * (1 - para$asym_rate)
+  para$R0_adj <- para$R0/(norm1 * norm2)
+  ##################################
+  # compute Re
+  norm_age_mix_scdst <- para$age_mix_scdst/sum(para$age_mix_scdst)
+  para$Re <- para$R0_adj/para$num_cc *
+    ((1- norm_age_mix_scdst[c(1)]/2- sum(norm_age_mix_scdst[c(2,4)])/4) * para$num_cc_scdst) *
+    norm2 # approximate Re (haven't taken age-susceptibility into account)
+  return(para)
+}
+
+
+
 ###############################################
 # generate the contact network
 ###############################################
@@ -197,6 +351,7 @@ init_para <- function(setting = 2, country_id = 1, social_distancing_flg = 1){
 #' @export
 #'
 #' @examples para <- init_para()
+#' para$ego.pop_sz <- 200
 #' nw <- network_generate(para)
 #' plot(simulate(nw[[1]]))
 network_generate <- function(para, output = "example", searched_clustering_number = 4){
@@ -230,7 +385,7 @@ network_generate <- function(para, output = "example", searched_clustering_numbe
     })
 
     searched_clustering_number <- searched_clustering_number + 1 # reduce the searched number if it did not converge; 6 is when there is no geographical clustering effect
-    print(paste0("search ", grid_id, " for geographical clustering"))
+    print(paste0("Reduce clustering coefficient, search again; current search: ", grid_id))
     grid_id <- grid_id + 1
   }
   para$clustering_effect <- clustering_effect
@@ -241,6 +396,7 @@ network_generate <- function(para, output = "example", searched_clustering_numbe
   est.ego <-  as.egodata(simulate(est1))
   suppressMessages(
     ego.net.fitting <- ergm.ego(est.ego ~ edges  + nodematch("family") + mm("age", levels2 = -6) + absdiff("clustering_x", pow=2) + absdiff("clustering_y", pow=2),
+                                popsize = para$pop_sz,
                                 control = control.ergm.ego(ergm = control.ergm(MCMLE.maxit = 400, SAN.maxit = 200)))
   )
   # save the data
@@ -310,43 +466,6 @@ initiate_nw <- function(para){
   return(list(nw, para))
 }
 
-R0_adjust <- function(para){
-  #########################################################################
-  # adjust R0 using next generation matrix for 1) young people susceptibility 2) subclinical cases
-  #########################################################################
-  # ajust for R0
-  # norm1 <- (sum(para$age_mix) - para$age_mix[c(1)]/2- sum(para$age_mix[c(2,4)])/4)/sum(para$age_mix)
-  # using next generation matrix to compute norm1; only kept terms connected with young people susceptibility
-  Cyy <- para$age_mix[c(1)] # number of comtact for young <--> young
-  Coy <- sum(para$age_mix[c(2,4)]) # number of comtact for young <--> old
-  Coo <- sum(para$age_mix[c(3,5,6)]) # number of comtact for old <--> old
-  Ny <- para$age_dist[1] # number of young people, Cyy/Ny is the average number of young contact for a yong person
-  No <- sum(para$age_dist[c(2,3)]) # number of young people, Cyy/Ny is the average number of young contact for a yong person
-  y_sus <- 0.5 # susceptability of young person
-  NGM <- matrix(c(y_sus * Cyy/Ny,  Coy/Ny, y_sus * Coy/No, Coo/No) , nrow = 2)
-  trNGM <- sum(diag(NGM))
-  detNGM <- det(NGM)
-  Spectral_radius_half <- trNGM + (trNGM^2 - 4*detNGM )^0.5
-
-  y_sus <- 1 # susceptability of young person
-  NGM <- matrix(c(y_sus * Cyy/Ny,  Coy/Ny, y_sus * Coy/No, Coo/No) , nrow = 2)
-  trNGM <- sum(diag(NGM))
-  detNGM <- det(NGM)
-  Spectral_radius_1 <- trNGM + (trNGM^2 - 4*detNGM )^0.5
-
-  norm1 <- Spectral_radius_half/Spectral_radius_1
-  # norm2 account for the redution of the low transmission rate of asymptomatic cases
-  norm2 <- 1 - para$sub_clini_rate * (1 - para$asym_rate)
-  para$R0_adj <- para$R0/(norm1 * norm2)
-  ##################################
-  # compute Re
-  norm_age_mix_scdst <- para$age_mix_scdst/sum(para$age_mix_scdst)
-  para$Re <- para$R0_adj/para$num_cc *
-    ((1- norm_age_mix_scdst[c(1)]/2- sum(norm_age_mix_scdst[c(2,4)])/4) * para$num_cc_scdst) *
-    norm2 # approximate Re (haven't taken age-susceptibility into account)
-  return(para)
-}
-
 
 ###############################################
 # wrapper for transmission simulation
@@ -362,7 +481,10 @@ R0_adjust <- function(para){
 #' @return a dataframe contains the simulated results.
 #' @export
 #'
-#' @examples simulate_transmission(PCR = F, RDT = F) # simulate a transmission without any containment
+#' @examples para <- init_para()
+#' para$ego.pop_sz <- 200
+#' nw <- network_generate(para)
+#' rslt <- simulate_transmission(PCR = FALSE, RDT = FALSE) # simulate a transmission without any containment
 simulate_transmission <- function(NW_SIM = NA, input_location = "Networks/example.network.Rdata", PCR = F, RDT = F, len_sim = 100){
   if(is.na(NW_SIM)){
     if(stringr::str_detect(input_location, ".network.Rdata")){

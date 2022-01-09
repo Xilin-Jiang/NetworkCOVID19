@@ -32,14 +32,7 @@ NULL
 #' @import ergm.ego
 NULL
 
-#' @param NW_SIM A list of two object, which is the output of network_generate function.
-#' @param input_location A file location to read the NW_SIM object.
-#' @param PCR logical True means PCR test is deployed for the containment
-#' @param RDT logical True means rapid diagnostic tests are deployed for the containment
-#' @param len_sim numeric number of days to simulate for the outbreak, default 100.
-
-
-#' wrapper function to simulate under four containment scenario, for multiple repeats
+#' wrapper function to simulate under four containment scenario, for multiple repeats.
 #'
 #' @param rep_num numeric number of epidemic to simulate, >100 is recommended
 #' @param network_num numeric number of synthetic population to construct, could be less than rep_num to save time an space, the simulation
@@ -55,7 +48,7 @@ NULL
 #' use [[4]] to access results of RDT + PCR containment.
 #' @export
 #'
-#' @examples
+#' @examples results <- network_covid_simulate(rep_num = 1, network_num = 1, output = "example", para = NA)
 network_covid_simulate <- function(rep_num = 1, network_num = 20, output = "example", para = NA, len_sim = 100) {
   # this is a wrapper function for simulating
   if(output == "example"){
@@ -65,7 +58,7 @@ network_covid_simulate <- function(rep_num = 1, network_num = 20, output = "exam
   }
   if(is.na(para)){
     print(paste0("No population specified, using the default parameter setting"))
-    para <- para <- init_para()
+    para <- init_para()
   }
   print("---------------------------------------------")
   print("-------- simulation settings ----------------")
@@ -124,12 +117,12 @@ network_covid_simulate <- function(rep_num = 1, network_num = 20, output = "exam
     print(paste0("PCR & RDT containment simulation: ", rep_id))
 
     for(sc in 1:4){ # save matrix for each scenario
-      new_daily_case[[sc]][rp, ] <- sim_rslt[[sc]]$new_daily_case
-      quarantine_daily[[sc]][rp, ] <- sim_rslt[[sc]]$quarantine_daily
-      Re_daily[[sc]][rp, ] <- sim_rslt[[sc]]$Re_daily
-      RDT_used[[sc]][rp, ] <- sim_rslt[[sc]]$RDT_used
-      PCR_used[[sc]][rp, ] <- sim_rslt[[sc]]$PCR_used
-      death_daily[[sc]][rp, ] <- sim_rslt[[sc]]$death_daily
+      new_daily_case[[sc]][rep_id, ] <- sim_rslt[[sc]]$new_daily_case
+      quarantine_daily[[sc]][rep_id, ] <- sim_rslt[[sc]]$quarantine_daily
+      Re_daily[[sc]][rep_id, ] <- sim_rslt[[sc]]$Re_daily
+      RDT_used[[sc]][rep_id, ] <- sim_rslt[[sc]]$RDT_used
+      PCR_used[[sc]][rep_id, ] <- sim_rslt[[sc]]$PCR_used
+      death_daily[[sc]][rep_id, ] <- sim_rslt[[sc]]$death_daily
     }
   }
   results_four_strategy <- list()
@@ -163,7 +156,7 @@ init_para <- function(setting = 2, country_id = 1, social_distancing_flg = 1, co
   para$setting <- setting # 1=rural 2=affluent 3=slum
   # Environment setup
   para$pop_sz <- 1000 # 5000
-  para$ego.pop_sz <- 500 # using 500 to fit the egocentric network (the sample size equal to the number of subjects in Uganda survey)
+  para$ego.pop_sz <- pmin(1000, para$pop_sz) # using 500 to fit the egocentric network (the sample size equal to the number of subjects in Uganda survey)
   para$Non_HH_CC_rate <- c(1,.8,.6,.4,.2)[social_distancing_flg]
   community_setting <- c("Rural", "Non-slum urban", "Slum")[setting]
   # print(paste0("Simulate ",para$pop_sz," individuals in ",community_setting," setting"))
@@ -359,7 +352,9 @@ network_generate <- function(para, output = "example", searched_clustering_numbe
   para_ego$pop_sz <- para$ego.pop_sz
   nw.ego <- initiate_nw(para_ego)[[1]]
   # save the network properties, including AGE, family_lable, geographical location
-  para <- initiate_nw(para)[[2]]
+  nw_para <- initiate_nw(para)
+  nw <- nw_para[[1]]
+  para <- nw_para[[2]]
 
   est1 <- NA
   grid_id <- 1
@@ -393,15 +388,21 @@ network_generate <- function(para, output = "example", searched_clustering_numbe
   ########################################################
   # Step 2: Transform the parameters to an egocentric model
   ########################################################
-  est.ego <-  as.egodata(simulate(est1))
-  suppressMessages(
-    ego.net.fitting <- ergm.ego(est.ego ~ edges  + nodematch("family") + mm("age", levels2 = -6) + absdiff("clustering_x", pow=2) + absdiff("clustering_y", pow=2),
-                                popsize = para$pop_sz,
-                                control = control.ergm.ego(ergm = control.ergm(MCMLE.maxit = 400, SAN.maxit = 200)))
-  )
+  if(para_ego$pop_sz < para$pop_sz){
+    print("Simulating large network -- fitting egocentric network")
+    est.ego <-  egor::as.egor(simulate(est1))
+    suppressMessages(
+      ego.net.fitting <- ergm.ego(est.ego ~ edges  + nodematch("family") + mm("age", levels2 = -6) + absdiff("clustering_x", pow=2) + absdiff("clustering_y", pow=2),
+                                  control = control.ergm.ego(ergm = control.ergm(MCMLE.maxit = 400, SAN.maxit = 200)))
+    )
+    NW_SIM <- list(ego.net.fitting,para,searched_clustering_number, deviation_target_statistics)
+  }else{
+    NW_SIM <- list(est1,para,searched_clustering_number, deviation_target_statistics)
+  }
+
   # save the data
   dir.create("Networks")
-  NW_SIM <- list(ego.net.fitting,para,searched_clustering_number, deviation_target_statistics)
+
   save(NW_SIM, file = paste0("Networks/",output,".network.Rdata"))
 
   return(NW_SIM)
@@ -593,8 +594,13 @@ C_update <- function(C, Q, est_nw, para){
   # then update close contact of this day. we assume the close contact to happen between the people around
   ##########################
   # simulated an actual net from the egocentric estimation
-  population.ego.sim <- data.frame(family = para$family_lable, age = para$AGE, clustering_x = para$clustering_x, clustering_y = para$clustering_y)
-  edge_lst <- network::as.edgelist(simulate(est_nw, popsize =population.ego.sim))
+  # population.ego.sim <- data.frame(family = para$family_lable, age = para$AGE, clustering_x = para$clustering_x, clustering_y = para$clustering_y)
+  if(class(nw[[1]])[1] == "ergm.ego"){
+    edge_lst <- network::as.edgelist(simulate(est_nw, popsize = para$pop_sz))
+  }else{
+    edge_lst <- network::as.edgelist(simulate(est_nw))
+  }
+
   # cc store the distance from the close contact to index case for each close contact of a particular day
 
   prob_cc <- ifelse(!is.na(Q[edge_lst[,1]]), para$theta, 1) * ifelse(!is.na(Q[edge_lst[,2]]),para$theta, 1)

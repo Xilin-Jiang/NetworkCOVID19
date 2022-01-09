@@ -14,7 +14,18 @@ yellow <- cbPalette[5]
 purple <- cbPalette[8]
 skyblue <- cbPalette[3]
 
+#' Title
+#'
+#' @param results Output of the network_covid_simulate function
+#' @param title_fig Give a title of the figure
+#'
+#' @return A ggplot figure object which plot the epidemic curves under four conditions.
+#' @export
+#'
+#' @examples
 plot_epidemic_curves <- function(results, title_fig = ""){
+
+  len_sim <- dim(results$new_daily_case[[1]])[2]
 
   err_baseline <- apply(results$new_daily_case[[1]], 2, function(x) sd(x)/sqrt(length(x)))
   err_RDT <- apply(results$new_daily_case[[2]], 2, function(x) sd(x)/sqrt(length(x)))

@@ -348,55 +348,105 @@ R0_adjust <- function(para){
 #' nw <- network_generate(para)
 #' plot(simulate(nw[[1]]))
 network_generate <- function(para, output = "example", searched_clustering_number = 4){
-  para_ego <- para
-  para_ego$pop_sz <- para$ego.pop_sz
-  nw.ego <- initiate_nw(para_ego)[[1]]
-  # save the network properties, including AGE, family_lable, geographical location
-  nw_para <- initiate_nw(para)
-  nw <- nw_para[[1]]
-  para <- nw_para[[2]]
 
-  est1 <- NA
-  grid_id <- 1
-  #################################################################################
-  # step 1: fit a small ERGM network to get the coefficients
-  #################################################################################
-  # perform grid search to get the local clustering coefficient
-  while(is.na(est1)){
-    clustering_effect <- (para_ego$pop_sz/2*para_ego$num_cc_scdst)*(1 - para_ego$percent_HH_cc_scdst) * searched_clustering_number #  14 (25) 23 (20)
-    target.stats <- c(para_ego$pop_sz/2 * para_ego$num_cc_scdst, para_ego$pop_sz/2 * para_ego$num_cc_scdst * para_ego$percent_HH_cc_scdst,
-                      (para_ego$age_mix_scdst/sum(para_ego$age_mix_scdst) * para_ego$pop_sz/2 * para_ego$num_cc_scdst)[1:5], clustering_effect, clustering_effect)
-
-    try({
-      suppressMessages(  est1 <- ergm(nw.ego ~ edges  + nodematch("family") + mm("age", levels2 = -6) + absdiff("clustering_x", pow=2) + absdiff("clustering_y", pow=2),
-                                      target.stats = target.stats,control = control.ergm(MCMLE.maxit = 400, SAN.maxit = 200)) )
-      ego.sim100 <- simulate(est1,nsim = 100)
-      sim.stats <- attr(ego.sim100,"stats")
-      trgt <- rbind(colMeans(sim.stats), est1$target.stats)
-      deviation_target_statistics <- mean(abs(trgt[1,] - trgt[2,])/trgt[2,])
-      if(deviation_target_statistics > 0.05){
-        est1 <- NA
-      }
-    })
-
-    searched_clustering_number <- searched_clustering_number + 1 # reduce the searched number if it did not converge; 6 is when there is no geographical clustering effect
-    print(paste0("Reduce clustering coefficient, search again; current search: ", grid_id))
-    grid_id <- grid_id + 1
-  }
-  para$clustering_effect <- clustering_effect
-
-  ########################################################
-  # Step 2: Transform the parameters to an egocentric model
-  ########################################################
-  if(para_ego$pop_sz < para$pop_sz){
+  if(para$ego.pop_sz < para$pop_sz){
     print("Simulating large network -- fitting egocentric network")
+    print("Note: para$pop_sz must be integer times of para$ego.pop_sz, otherwise it will be stopped")
+    stopifnot(para$pop_sz %% para$ego.pop_sz == 0)
+    para_ego <- para
+    para_ego$pop_sz <- para$ego.pop_sz
+    nw_para <- initiate_nw(para_ego)
+    nw.ego <- nw_para[[1]]
+    para_ego <- nw_para[[2]]
+
+    est1 <- NA
+    grid_id <- 1
+
+    ############ TODO!! Very long and complicated pipeline ... don't know if it worth it 1. fitting a small network 2. simulate a couple of networks, assigning the family labels, geographical locations to it
+    # 3. using as.edgelist to conbine these simulated networks 4. change it to egor data
+    # 5 sample a smaller sample size egor, fit the ERGM 6. use the ERGM to sample large network. extract the family location -- there will always be individuals who are replicated
+    ############ TODO!! more sensible way: fit ego -- then just recreate household separation based on the simulated family id.
+
+    #################################################################################
+    # step 1: fit a small ERGM network to get the coefficients
+    #################################################################################
+    # perform grid search to get the local clustering coefficient
+    while(is.na(est1)){
+      clustering_effect <- (para_ego$pop_sz/2*para_ego$num_cc_scdst)*(1 - para_ego$percent_HH_cc_scdst) * searched_clustering_number #  14 (25) 23 (20)
+      target.stats <- c(para_ego$pop_sz/2 * para_ego$num_cc_scdst, para_ego$pop_sz/2 * para_ego$num_cc_scdst * para_ego$percent_HH_cc_scdst,
+                        (para_ego$age_mix_scdst/sum(para_ego$age_mix_scdst) * para_ego$pop_sz/2 * para_ego$num_cc_scdst)[1:5], clustering_effect, clustering_effect)
+
+      try({
+        suppressMessages(  est1 <- ergm(nw.ego ~ edges  + nodematch("family") + mm("age", levels2 = -6) + absdiff("clustering_x", pow=2) + absdiff("clustering_y", pow=2),
+                                        target.stats = target.stats,control = control.ergm(MCMLE.maxit = 400, SAN.maxit = 200)) )
+        ego.sim100 <- simulate(est1,nsim = 100)
+        sim.stats <- attr(ego.sim100,"stats")
+        trgt <- rbind(colMeans(sim.stats), est1$target.stats)
+        deviation_target_statistics <- mean(abs(trgt[1,] - trgt[2,])/trgt[2,])
+        if(deviation_target_statistics > 0.05){
+          est1 <- NA
+        }
+      })
+
+      searched_clustering_number <- searched_clustering_number + 1 # reduce the searched number if it did not converge; 6 is when there is no geographical clustering effect
+      print(paste0("Reduce clustering coefficient, search again; current search: ", grid_id))
+      grid_id <- grid_id + 1
+    }
+    para$clustering_effect <- clustering_effect
+    ########################################################
+    # Step 2: Transform the parameters to an egocentric model
+    ########################################################
     est.ego <-  egor::as.egor(simulate(est1))
     suppressMessages(
       ego.net.fitting <- ergm.ego(est.ego ~ edges  + nodematch("family") + mm("age", levels2 = -6) + absdiff("clustering_x", pow=2) + absdiff("clustering_y", pow=2),
                                   control = control.ergm.ego(ergm = control.ergm(MCMLE.maxit = 400, SAN.maxit = 200)))
     )
-    NW_SIM <- list(ego.net.fitting,para,searched_clustering_number, deviation_target_statistics)
+
+    # resetting the population size, extracting family labels
+    para_ego$pop_sz <- para$pop_sz
+    nw_attr <- simulate(ego.net.fitting, popsize = para$pop_sz)
+    para_ego$family_lable <- network::get.vertex.attribute(nw_attr, "family") + max(network::get.vertex.attribute(nw_attr, "family"))*(0:(para_ego$pop_sz/para_ego$ego.pop_sz - 1))
+    para_ego$clustering_x <- network::get.vertex.attribute(nw_attr, "clustering_x")
+    para_ego$clustering_y <- network::get.vertex.attribute(nw_attr, "clustering_y")
+    para_ego$AGE <- network::get.vertex.attribute(nw_attr, "age")
+
+    NW_SIM <- list(ego.net.fitting,para_ego,searched_clustering_number, deviation_target_statistics)
   }else{
+    print("Directly fitting the ERGM -- not using egocentric data")
+    # save the network properties, including AGE, family_lable, geographical location
+    nw_para <- initiate_nw(para)
+    nw <- nw_para[[1]]
+    para <- nw_para[[2]]
+
+    est1 <- NA
+    grid_id <- 1
+    #################################################################################
+    # step 1: fit a small ERGM network to get the coefficients
+    #################################################################################
+    # perform grid search to get the local clustering coefficient
+    while(is.na(est1)){
+      clustering_effect <- (para$pop_sz/2*para$num_cc_scdst)*(1 - para$percent_HH_cc_scdst) * searched_clustering_number #  14 (25) 23 (20)
+      target.stats <- c(para$pop_sz/2 * para$num_cc_scdst, para$pop_sz/2 * para$num_cc_scdst * para$percent_HH_cc_scdst,
+                        (para$age_mix_scdst/sum(para$age_mix_scdst) * para$pop_sz/2 * para$num_cc_scdst)[1:5], clustering_effect, clustering_effect)
+
+      try({
+        suppressMessages(  est1 <- ergm(nw.ego ~ edges  + nodematch("family") + mm("age", levels2 = -6) + absdiff("clustering_x", pow=2) + absdiff("clustering_y", pow=2),
+                                        target.stats = target.stats,control = control.ergm(MCMLE.maxit = 400, SAN.maxit = 200)) )
+        ego.sim100 <- simulate(est1,nsim = 100)
+        sim.stats <- attr(ego.sim100,"stats")
+        trgt <- rbind(colMeans(sim.stats), est1$target.stats)
+        deviation_target_statistics <- mean(abs(trgt[1,] - trgt[2,])/trgt[2,])
+        if(deviation_target_statistics > 0.05){
+          est1 <- NA
+        }
+      })
+
+      searched_clustering_number <- searched_clustering_number + 1 # reduce the searched number if it did not converge; 6 is when there is no geographical clustering effect
+      print(paste0("Reduce clustering coefficient, search again; current search: ", grid_id))
+      grid_id <- grid_id + 1
+    }
+    para$clustering_effect <- clustering_effect
+
     NW_SIM <- list(est1,para,searched_clustering_number, deviation_target_statistics)
   }
 
@@ -600,7 +650,6 @@ C_update <- function(C, Q, est_nw, para){
   }else{
     edge_lst <- network::as.edgelist(simulate(est_nw))
   }
-
   # cc store the distance from the close contact to index case for each close contact of a particular day
 
   prob_cc <- ifelse(!is.na(Q[edge_lst[,1]]), para$theta, 1) * ifelse(!is.na(Q[edge_lst[,2]]),para$theta, 1)

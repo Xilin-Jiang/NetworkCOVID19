@@ -2,9 +2,12 @@
 
 export("%>%")
 export(init_para)
+export(network_covid_simulate)
 export(network_generate)
+export(plot_epidemic_curves)
 export(simulate_transmission)
 import(ergm)
 import(ergm.ego)
+import(ggplot2)
 import(stats)
 importFrom(magrittr,"%>%")

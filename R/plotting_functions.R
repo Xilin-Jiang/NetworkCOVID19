@@ -22,7 +22,9 @@ skyblue <- cbPalette[3]
 #' @return A ggplot figure object which plot the epidemic curves under four conditions.
 #' @export
 #'
-#' @examples
+#' @examples  results <- network_covid_simulate(rep_num = 1, network_num = 1, output = "example", para = NA)
+#' plt <- plot_epidemic_curves(results, title_fig = "")
+#'
 plot_epidemic_curves <- function(results, title_fig = ""){
 
   len_sim <- dim(results$new_daily_case[[1]])[2]

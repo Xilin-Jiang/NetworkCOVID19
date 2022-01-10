@@ -34,7 +34,10 @@ test_that("two methods of fitting network", {
 })
 
 test_that("wrapper function", {
-  results <- network_covid_simulate(rep_num = 1, network_num = 1, output = "example", para = NA)
+  para <- init_para(2, 1, 1)
+  # testing for joint simulation scheme
+  para$community.pop_sz <- 200
+  results <- network_covid_simulate(rep_num = 1, network_num = 1, output = "example", para = para)
   plt <- plot_epidemic_curves(results, title_fig = "")
 })
 

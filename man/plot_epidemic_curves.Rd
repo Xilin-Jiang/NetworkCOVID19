@@ -17,3 +17,8 @@ A ggplot figure object which plot the epidemic curves under four conditions.
 \description{
 Title
 }
+\examples{
+ results <- network_covid_simulate(rep_num = 1, network_num = 1, output = "example", para = NA)
+plt <- plot_epidemic_curves(results, title_fig = "")
+
+}

@@ -361,7 +361,7 @@ network_generate <- function(para, output = "example", searched_clustering_numbe
     # step 1: fit a small ERGM network to get the coefficients
     #################################################################################
     # perform grid search to get the local clustering coefficient
-    while(is.na(est.community)){
+    while(class(est.community) != "ergm"){
       nw_para <- initiate_nw(para.community)
       nw.ego <- nw_para[[1]]
       para.community <- nw_para[[2]]
@@ -380,11 +380,11 @@ network_generate <- function(para, output = "example", searched_clustering_numbe
         }
       })
 
-      searched_clustering_number <- searched_clustering_number + 1 # reduce the searched number if it did not converge; 6 is when there is no geographical clustering effect
-      if(is.na(est.community)) print(paste0("There might be problem with parameter setting, sample population again. current repeat: ", grid_id))
-      grid_id <- grid_id + 1
+      if(class(est.community) != "ergm"){
+        print(paste0("There might be problem with parameter setting, sample population again. current repeat: ", grid_id))
+        grid_id <- grid_id + 1
+        }
     }
-    para$clustering_effect <- clustering_effect
 
 
     nw.full <- initiate_nw(para)[[1]]
@@ -486,7 +486,7 @@ aggregate_simulation <- function(est_nw, para){
     communities <- rbind(communities, network::as.edgelist(simulate(est.community)) + para$community.pop_sz * (i-1))
   }
   communities <- rbind(communities, network::as.edgelist(simulate(est.full)))
-  nw_joint <- as.network(communities, directed = F)
+  nw_joint <- network::as.network(communities, directed = F)
   return(nw_joint)
 }
 

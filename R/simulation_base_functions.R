@@ -29,9 +29,6 @@ NULL
 #' @import ergm
 NULL
 
-#' @import ergm.ego
-NULL
-
 #' wrapper function to simulate under four containment scenario, for multiple repeats.
 #'
 #' @param rep_num numeric number of epidemic to simulate, >100 is recommended
@@ -78,9 +75,11 @@ network_covid_simulate <- function(rep_num = 1, network_num = 20, output = "exam
   print("-----------------------------------------------------------")
   print("-------- synthetic population simulation ------------------")
   print("-----------------------------------------------------------")
+  nw <- list()
+  nw[[3]] <- 4
   for(nw_id in 1:network_num){
     print(paste0("Generate network: ", nw_id))
-    network_generate(para, output = paste0(output, ".", nw_id) )
+    nw <- network_generate(para, output = paste0(output, ".", nw_id), searched_clustering_number = nw[[3]])
   }
   # simulate all four scenarios
   print("-----------------------------------------------------------")
@@ -156,7 +155,7 @@ init_para <- function(setting = 2, country_id = 1, social_distancing_flg = 1, co
   para$setting <- setting # 1=rural 2=affluent 3=slum
   # Environment setup
   para$pop_sz <- 1000 # 5000
-  para$ego.pop_sz <- pmin(1000, para$pop_sz) # using 500 to fit the egocentric network (the sample size equal to the number of subjects in Uganda survey)
+  para$community.pop_sz <- ifelse(para$pop_sz > 500, 200, para$pop_sz) # using 500 to fit the egocentric network (the sample size equal to the number of subjects in Uganda survey)
   para$Non_HH_CC_rate <- c(1,.8,.6,.4,.2)[social_distancing_flg]
   community_setting <- c("Rural", "Non-slum urban", "Slum")[setting]
   # print(paste0("Simulate ",para$pop_sz," individuals in ",community_setting," setting"))
@@ -344,78 +343,97 @@ R0_adjust <- function(para){
 #' @export
 #'
 #' @examples para <- init_para()
-#' para$ego.pop_sz <- 200
+#' para$community.pop_sz <- 200
 #' nw <- network_generate(para)
 #' plot(simulate(nw[[1]]))
-network_generate <- function(para, output = "example", searched_clustering_number = 4){
+network_generate <- function(para, output = "example", searched_clustering_number = 4 ){
 
-  if(para$ego.pop_sz < para$pop_sz){
-    print("Simulating large network -- fitting egocentric network")
-    print("Note: para$pop_sz must be integer times of para$ego.pop_sz, otherwise it will be stopped")
-    stopifnot(para$pop_sz %% para$ego.pop_sz == 0)
-    para_ego <- para
-    para_ego$pop_sz <- para$ego.pop_sz
-    nw_para <- initiate_nw(para_ego)
-    nw.ego <- nw_para[[1]]
-    para_ego <- nw_para[[2]]
+  if(para$community.pop_sz < para$pop_sz){
+    print("Simulating large network -- fitting small networks and aggregate them")
+    print("Note: para$pop_sz must be integer times of para$community.pop_sz, otherwise it will be stopped")
+    stopifnot(para$pop_sz %% para$community.pop_sz == 0)
+    para.community <- para
+    para.community$pop_sz <- para$community.pop_sz
 
-    est1 <- NA
+    est.community <- NA
     grid_id <- 1
-
-    ############ TODO!! Very long and complicated pipeline ... don't know if it worth it 1. fitting a small network 2. simulate a couple of networks, assigning the family labels, geographical locations to it
-    # 3. using as.edgelist to conbine these simulated networks 4. change it to egor data
-    # 5 sample a smaller sample size egor, fit the ERGM 6. use the ERGM to sample large network. extract the family location -- there will always be individuals who are replicated
-    ############ TODO!! more sensible way: fit ego -- then just recreate household separation based on the simulated family id.
-
     #################################################################################
     # step 1: fit a small ERGM network to get the coefficients
     #################################################################################
     # perform grid search to get the local clustering coefficient
-    while(is.na(est1)){
-      clustering_effect <- (para_ego$pop_sz/2*para_ego$num_cc_scdst)*(1 - para_ego$percent_HH_cc_scdst) * searched_clustering_number #  14 (25) 23 (20)
-      target.stats <- c(para_ego$pop_sz/2 * para_ego$num_cc_scdst, para_ego$pop_sz/2 * para_ego$num_cc_scdst * para_ego$percent_HH_cc_scdst,
-                        (para_ego$age_mix_scdst/sum(para_ego$age_mix_scdst) * para_ego$pop_sz/2 * para_ego$num_cc_scdst)[1:5], clustering_effect, clustering_effect)
+    while(is.na(est.community)){
+      nw_para <- initiate_nw(para.community)
+      nw.ego <- nw_para[[1]]
+      para.community <- nw_para[[2]]
 
+      target.stats <- c(para$community.pop_sz/2 * para$num_cc_scdst * 0.9, para$community.pop_sz/2 * para$num_cc_scdst * para$percent_HH_cc_scdst,
+                        (para$age_mix_scdst/sum(para$age_mix_scdst) * para$community.pop_sz/2 * para$num_cc_scdst)[1:5])
       try({
-        suppressMessages(  est1 <- ergm(nw.ego ~ edges  + nodematch("family") + mm("age", levels2 = -6) + absdiff("clustering_x", pow=2) + absdiff("clustering_y", pow=2),
-                                        target.stats = target.stats,control = control.ergm(MCMLE.maxit = 400, SAN.maxit = 200)) )
-        ego.sim100 <- simulate(est1,nsim = 100)
+        suppressMessages(  est.community <- ergm(nw.ego ~ edges  + nodematch("family") + mm("age", levels2 = -6),
+                                        target.stats = target.stats,control = control.ergm(MCMLE.maxit = 400, SAN.maxit = 1000)) )
+        ego.sim100 <- simulate(est.community,nsim = 100)
         sim.stats <- attr(ego.sim100,"stats")
-        trgt <- rbind(colMeans(sim.stats), est1$target.stats)
+        trgt <- rbind(colMeans(sim.stats), est.community$target.stats)
         deviation_target_statistics <- mean(abs(trgt[1,] - trgt[2,])/trgt[2,])
         if(deviation_target_statistics > 0.05){
-          est1 <- NA
+          est.community <- NA
         }
       })
 
       searched_clustering_number <- searched_clustering_number + 1 # reduce the searched number if it did not converge; 6 is when there is no geographical clustering effect
-      print(paste0("Reduce clustering coefficient, search again; current search: ", grid_id))
+      if(is.na(est.community)) print(paste0("There might be problem with parameter setting, sample population again. current repeat: ", grid_id))
       grid_id <- grid_id + 1
     }
     para$clustering_effect <- clustering_effect
-    ########################################################
-    # Step 2: Transform the parameters to an egocentric model
-    ########################################################
-    est.ego <-  egor::as.egor(simulate(est1))
-    suppressMessages(
-      ego.net.fitting <- ergm.ego(est.ego ~ edges  + nodematch("family") + mm("age", levels2 = -6) + absdiff("clustering_x", pow=2) + absdiff("clustering_y", pow=2),
-                                  control = control.ergm.ego(ergm = control.ergm(MCMLE.maxit = 400, SAN.maxit = 200)))
+
+
+    nw.full <- initiate_nw(para)[[1]]
+    suppressMessages( est.full <- ergm(nw.full ~ edges,
+                 target.stats = para$pop_sz/2 * para$num_cc_scdst * 0.1 * para$Non_HH_CC_rate,control = control.ergm(MCMLE.maxit = 400, SAN.maxit = 1000))
     )
 
-    # resetting the population size, extracting family labels
-    para_ego$pop_sz <- para$pop_sz
-    nw_attr <- simulate(ego.net.fitting, popsize = para$pop_sz)
-    para_ego$family_lable <- network::get.vertex.attribute(nw_attr, "family") + max(network::get.vertex.attribute(nw_attr, "family"))*(0:(para_ego$pop_sz/para_ego$ego.pop_sz - 1))
-    para_ego$clustering_x <- network::get.vertex.attribute(nw_attr, "clustering_x")
-    para_ego$clustering_y <- network::get.vertex.attribute(nw_attr, "clustering_y")
-    para_ego$AGE <- network::get.vertex.attribute(nw_attr, "age")
+    ########################################################
+    # Step 2: construct a full size population with many realization of small communitys
+    ########################################################
+    num_community <- para$pop_sz/para$community.pop_sz
+    communities <- network::as.edgelist(simulate(est.community))
+    # assigning all the covariates
+    nw_attr <- simulate(est.community)
+    cov_family <- network::get.vertex.attribute(nw_attr, "family")
+    cov_clustering_x <- network::get.vertex.attribute(nw_attr, "clustering_x")
+    cov_clustering_y <- network::get.vertex.attribute(nw_attr, "clustering_y")
+    cov_AGE <- network::get.vertex.attribute(nw_attr, "age")
+    nw_family <- cov_family
+    nw_clustering_x <- cov_clustering_x
+    nw_clustering_y <- cov_clustering_y
+    nw_AGE <- cov_AGE
+    for(i in 2:num_community){
+      communities <- rbind(communities, network::as.edgelist(simulate(est.community)) + para$community.pop_sz * (i-1))
+      nw_family <- c(nw_family, cov_family + max(cov_family) * (i-1))
+      nw_clustering_x <- c(nw_clustering_x, cov_clustering_x + (max(cov_clustering_x) - min(cov_clustering_x)) * (i - 1)/sqrt(2) )
+      nw_clustering_y <- c(nw_clustering_y, cov_clustering_y + (max(cov_clustering_y) - min(cov_clustering_y)) * (i - 1)/sqrt(2) )
+      nw_AGE <- c(nw_AGE, cov_AGE)
+    }
+    # communities <- rbind(communities, network::as.edgelist(simulate(est.full)))
+    # nw_joint <- as.network(communities, directed = F)
+    # network::set.vertex.attribute(nw_joint, attrname = "family", nw_family)
+    # network::set.vertex.attribute(nw_joint, attrname = "clustering_x", nw_clustering_x)
+    # network::set.vertex.attribute(nw_joint, attrname = "clustering_y", nw_clustering_y)
+    # network::set.vertex.attribute(nw_joint, attrname = "age", nw_AGE)
 
-    NW_SIM <- list(ego.net.fitting,para_ego,searched_clustering_number, deviation_target_statistics)
+    # resetting the population size, extracting family labels
+    para.community$pop_sz <- para$pop_sz
+    para.community$family_lable <- nw_family
+    para.community$clustering_x <- nw_clustering_x
+    para.community$clustering_y <- nw_clustering_y
+    para.community$AGE <- nw_AGE
+
+    NW_SIM <- list(list(est.community, est.full),para.community,searched_clustering_number, deviation_target_statistics)
   }else{
-    print("Directly fitting the ERGM -- not using egocentric data")
+    print("Directly fitting the ERGM -- not using aggregating small community trick")
     # save the network properties, including AGE, family_lable, geographical location
     nw_para <- initiate_nw(para)
-    nw <- nw_para[[1]]
+    nw.full <- nw_para[[1]]
     para <- nw_para[[2]]
 
     est1 <- NA
@@ -430,7 +448,7 @@ network_generate <- function(para, output = "example", searched_clustering_numbe
                         (para$age_mix_scdst/sum(para$age_mix_scdst) * para$pop_sz/2 * para$num_cc_scdst)[1:5], clustering_effect, clustering_effect)
 
       try({
-        suppressMessages(  est1 <- ergm(nw.ego ~ edges  + nodematch("family") + mm("age", levels2 = -6) + absdiff("clustering_x", pow=2) + absdiff("clustering_y", pow=2),
+        suppressMessages(  est1 <- ergm(nw.full ~ edges  + nodematch("family") + mm("age", levels2 = -6) + absdiff("clustering_x", pow=2) + absdiff("clustering_y", pow=2),
                                         target.stats = target.stats,control = control.ergm(MCMLE.maxit = 400, SAN.maxit = 200)) )
         ego.sim100 <- simulate(est1,nsim = 100)
         sim.stats <- attr(ego.sim100,"stats")
@@ -456,6 +474,20 @@ network_generate <- function(para, output = "example", searched_clustering_numbe
   save(NW_SIM, file = paste0("Networks/",output,".network.Rdata"))
 
   return(NW_SIM)
+}
+
+# use the function below to simulate contact network for large population -- using many small network to combine
+aggregate_simulation <- function(est_nw, para){
+  est.community <- est_nw[[1]]
+  est.full <- est_nw[[2]]
+  num_community <- para$pop_sz/para$community.pop_sz
+  communities <- network::as.edgelist(simulate(est.community))
+  for(i in 2:num_community){
+    communities <- rbind(communities, network::as.edgelist(simulate(est.community)) + para$community.pop_sz * (i-1))
+  }
+  communities <- rbind(communities, network::as.edgelist(simulate(est.full)))
+  nw_joint <- as.network(communities, directed = F)
+  return(nw_joint)
 }
 
 
@@ -533,7 +565,7 @@ initiate_nw <- function(para){
 #' @export
 #'
 #' @examples para <- init_para()
-#' para$ego.pop_sz <- 200
+#' para$community.pop_sz <- 200
 #' nw <- network_generate(para)
 #' rslt <- simulate_transmission(PCR = FALSE, RDT = FALSE) # simulate a transmission without any containment
 simulate_transmission <- function(NW_SIM = NA, input_location = "Networks/example.network.Rdata", PCR = F, RDT = F, len_sim = 100){
@@ -544,7 +576,7 @@ simulate_transmission <- function(NW_SIM = NA, input_location = "Networks/exampl
       load(paste0(input_location, ".network.Rdata"))
     }
   }
-  ego.net.fitting <- NW_SIM[[1]]
+  ergm.fitting <- NW_SIM[[1]]
   para <- NW_SIM[[2]]
   para$len_sim <- len_sim
 
@@ -593,7 +625,7 @@ simulate_transmission <- function(NW_SIM = NA, input_location = "Networks/exampl
   Z[init_idx] <- F
   for(t in 1:len_sim){
     C_lst[[t]] <- C
-    C <- C_update(C, Q, ego.net.fitting, para)
+    C <- C_update(C, Q, ergm.fitting, para)
     lst <- I_O_update(I, Q, C, O, Z, trace_inf_n, para)
     I <- lst[[1]]
     O <- lst[[2]]
@@ -645,8 +677,8 @@ C_update <- function(C, Q, est_nw, para){
   ##########################
   # simulated an actual net from the egocentric estimation
   # population.ego.sim <- data.frame(family = para$family_lable, age = para$AGE, clustering_x = para$clustering_x, clustering_y = para$clustering_y)
-  if(class(nw[[1]])[1] == "ergm.ego"){
-    edge_lst <- network::as.edgelist(simulate(est_nw, popsize = para$pop_sz))
+  if(class(est_nw) == "list"){
+    edge_lst <- network::as.edgelist(aggregate_simulation(est_nw, para))
   }else{
     edge_lst <- network::as.edgelist(simulate(est_nw))
   }

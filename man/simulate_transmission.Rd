@@ -31,7 +31,7 @@ Simulate transmission using contact network.
 }
 \examples{
 para <- init_para()
-para$ego.pop_sz <- 200
+para$community.pop_sz <- 200
 nw <- network_generate(para)
 rslt <- simulate_transmission(PCR = FALSE, RDT = FALSE) # simulate a transmission without any containment
 }

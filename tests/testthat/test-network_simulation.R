@@ -2,7 +2,7 @@
 test_that("initialise default parameter setting for network generation,
           loading default parameter setting for simulation", {
   para <- init_para(2, 1, 1)
-  para$ego.pop_sz <- 200 # testing for a small sample size
+  para$community.pop_sz <- 200 # testing for a small sample size
   para$death_rate <- c(1,1,1)
   para$death_delay <- 0
   nw <- network_generate(para)
@@ -15,17 +15,22 @@ test_that("initialise default parameter setting for network generation,
 })
 
 test_that("contact number setting", {
-  para <- init_para(2, 1, social_distancing_flg = 4, contact_number = 30)
+  para <- init_para(2, 1, social_distancing_flg = 4, contact_number = 15)
   expect_equal(c(para$num_cc, para$num_cc_scdst), c(30, 16.14))
 })
 
-test_that("using egocentric parameter -- can we make sure the resulting network has the save family label defined?", {
+test_that("two methods of fitting network", {
   para <- init_para(2, 1, 1)
-  para$ego.pop_sz <- 200 # testing for a small sample size
+  # testing for joint simulation scheme
+  para$community.pop_sz <- 200
   nw <- network_generate(para)
-  a <- simulate(nw[[1]], popsize = para$pop_sz, nsim = 10)
-  para <- nw[[2]]
-  expect_equal(network::get.vertex.attribute(a[[1]], "family"), para$family_lable - 40*(0:4))
+  expect_equal(network::network.size(aggregate_simulation(nw[[1]], para)), para$pop_sz)
+  # direct fitting strategy
+  para <- init_para(2, 1, 1)
+  para$community.pop_sz <- 200
+  para$pop_sz <- 200
+  nw <- network_generate(para)
+  expect_equal(class(nw[[1]]), "ergm")
 })
 
 test_that("wrapper function", {

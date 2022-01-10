@@ -23,7 +23,7 @@ Simulate synthetic population estimate ERGM contact networks.
 }
 \examples{
 para <- init_para()
-para$ego.pop_sz <- 200
+para$community.pop_sz <- 200
 nw <- network_generate(para)
 plot(simulate(nw[[1]]))
 }

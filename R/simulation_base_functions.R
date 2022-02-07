@@ -134,8 +134,13 @@ network_covid_simulate <- function(rep_num = 1, network_num = 20, output = "exam
   return(results_four_strategy)
 }
 
-
-
+# using assign_para to ensure variable changes would not be masked by init_para
+assign_para <- function(para, name, value){
+  if(is.null(para[[name]])){
+    para[[name]] <- value
+  }
+  return(para)
+}
 #' initiate default parameters for simulation
 #'
 #' @param setting integer. rural simulation; 2 for urban, 3 for slum
@@ -146,17 +151,16 @@ network_covid_simulate <- function(rep_num = 1, network_num = 20, output = "exam
 #' @export
 #'
 #' @examples # initialise a normal para <- init_para()
-init_para <- function(setting = 2, country_id = 1, social_distancing_flg = 1, contact_number = NA){
-  para <- list()
+init_para <- function(setting = 2, country_id = 1, social_distancing_flg = 1, para = list()){
 
   ###############################
   # parameters relevant to network
   ###############################
-  para$setting <- setting # 1=rural 2=affluent 3=slum
+  para <- assign_para(para, "setting", setting)  # 1=rural 2=affluent 3=slum
   # Environment setup
-  para$pop_sz <- 1000 # 5000
-  para$community.pop_sz <- ifelse(para$pop_sz > 500, 200, para$pop_sz) # using 500 to fit the egocentric network (the sample size equal to the number of subjects in Uganda survey)
-  para$Non_HH_CC_rate <- c(1,.8,.6,.4,.2)[social_distancing_flg]
+  para <- assign_para(para, "pop_sz", 1000)  # 5000
+  para <- assign_para(para, "community.pop_sz", 100)
+  para <- assign_para(para, "Non_HH_CC_rate", c(1,.8,.6,.4,.2)[social_distancing_flg])
   community_setting <- c("Rural", "Non-slum urban", "Slum")[setting]
   # print(paste0("Simulate ",para$pop_sz," individuals in ",community_setting," setting"))
   ##########################################
@@ -164,17 +168,17 @@ init_para <- function(setting = 2, country_id = 1, social_distancing_flg = 1, co
   # age distribution & household
   ##########################################
   if(country_id == 1){
-    para$age_dist <- c(0.481, 0.203, 0.316) # Uganda
-    para$HH_dist <- c(.11, .22, .27, .4) # Uganda
+    para <- assign_para(para, "age_dist", c(0.481, 0.203, 0.316) )# Uganda
+    para <- assign_para(para, "HH_dist", c(.11, .22, .27, .4)) # Uganda
   }else if(country_id == 2){
-    para$age_dist <- c(0.292, 0.193, 0.515) # South africa
-    para$HH_dist <- c(.27, .35, .23, .15) # South Africa
+    para <- assign_para(para, "age_dist", c(0.292, 0.193, 0.515)) # South africa
+    para <- assign_para(para, "HH_dist", c(.27, .35, .23, .15))  # South Africa
   }else if(country_id == 3){
-    para$age_dist <- c(0.419, 0.195, 0.386) # kenya
-    para$HH_dist <- c(.19, .28, .3, .23) # kenya
+    para <- assign_para(para, "age_dist", c(0.419, 0.195, 0.386))  # kenya
+    para <- assign_para(para, "HH_dist", c(.19, .28, .3, .23)) # kenya
   }else if(country_id == 4){
-    para$age_dist <- c(0.440, 0.190, 0.370) # nigeria
-    para$HH_dist <- c(.16, .26, .26, .32) # nigeria
+    para <- assign_para(para, "age_dist", c(0.440, 0.190, 0.370))  # nigeria
+    para <- assign_para(para, "HH_dist", c(.16, .26, .26, .32) ) # nigeria
   }
 
   ##########################################
@@ -184,26 +188,24 @@ init_para <- function(setting = 2, country_id = 1, social_distancing_flg = 1, co
   # para$HH_affluent_dist <- c(.31, .5, .18, .02) # UK
 
   if (para$setting==1) {
-    para$num_cc <- 7 # set daily close contact to be 7
-    para$family_sz <- 5 # average household size 5
+    para <- assign_para(para, "num_cc", 7) # set daily close contact to be 7
+    para <- assign_para(para, "family_sz", 5) # average household size 5
     # set the percentage of HH_cc
-    para$percent_HH_cc <- .5
+    para <- assign_para(para, "percent_HH_cc", .5)
   }else if (para$setting==2) {
-    para$num_cc <- 13
-    para$family_sz <- 5
-    para$percent_HH_cc <- .23
+    para <- assign_para(para, "num_cc", 13)
+    para <- assign_para(para, "family_sz", 5)
+    para <- assign_para(para, "percent_HH_cc", .23)
   }else if (para$setting==3) {
-    para$num_cc <- 14
-    para$family_sz <- 15
-    para$percent_HH_cc <- .5
-    para$HH_dist <- c(.00, .06, .17, .77) # afganistan
+    para <- assign_para(para, "num_cc", 14)
+    para <- assign_para(para, "family_sz", 15)
+    para <- assign_para(para, "percent_HH_cc", .5)
+    para <- assign_para(para, "HH_dist",  c(.00, .06, .17, .77) ) # afganistan
   }else print ("Parameter setting error")
-  # overun the contact number
-  if(! is.na(contact_number)) para$num_cc <- contact_number
 
   # load the contact structure
-  para$age_mix <- contact_all[[country_id]]
-  para$Home_age_mix <- contact_home[[country_id]]
+  para <- assign_para(para, "age_mix", contact_all[[country_id]])
+  para <- assign_para(para, "Home_age_mix", contact_home[[country_id]])
   # adjust the age matrix to represent the specified household contact rate
   para$age_mix <- para$Home_age_mix + (para$age_mix - para$Home_age_mix) *
     sum(para$Home_age_mix)/sum(para$age_mix - para$Home_age_mix) *  (1-para$percent_HH_cc)/para$percent_HH_cc
@@ -218,70 +220,68 @@ init_para <- function(setting = 2, country_id = 1, social_distancing_flg = 1, co
   # parameters relevant to transmission
   ###############################
 
-  para$E_0 <- 2 # number of initial importation
-  para$infect_sz <- (-1)*para$pop_sz/1000 # intervention only starts after X per 1000 individuals are already infected
+  para <- assign_para(para, "E_0",  2) # number of initial importation
+  para <- assign_para(para, "infect_sz", (-1)*para$pop_sz/1000)  # intervention only starts after X per 1000 individuals are already infected
 
   R_UK <- 2.7
   num_cc_UK <- 13
   R0_baseline <- R_UK/num_cc_UK # the R0 is measured in affluent region
+  para <- assign_para(para, "R0", R0_baseline * para$num_cc)  # R naught
   # Transmission parameter & tool availability
   if (para$setting==1) {
-    para$symptom_report <- 0.7 # precentage infected report symptom
-    para$R0 <- R0_baseline * para$num_cc # R naught
-    para$theta <- 0.1 # quarantine effect: precentage of remaining transmission quarantined individual have
-    para$pcr_available <- 1000*para$pop_sz/1000 # -1 # daily maximum PCR tests per 1000 population.
-    para$ppe_coef <- 1 # if people wear ppe, then their transmissibility will be different outside their family
+    para <- assign_para(para, "symptom_report", 0.7)  # precentage infected report symptom
+    para <- assign_para(para, "theta", 0.1 )  # quarantine effect: precentage of remaining transmission quarantined individual have
+    para <- assign_para(para, "pcr_available", 1000*para$pop_sz/1000) # -1 # daily maximum PCR tests per 1000 population.
+    para <- assign_para(para, "ppe_coef", 1) # if people wear ppe, then their transmissibility will be different outside their family
   }else if (para$setting==2) {
-    para$symptom_report <- 0.7
-    para$R0 <- R0_baseline * para$num_cc
-    para$theta <- 0.1
-    para$pcr_available <-1000*para$pop_sz/1000
-    para$ppe_coef <- 1
+    para <- assign_para(para, "symptom_report", 0.7)
+    para <- assign_para(para, "theta", 0.1)
+    para <- assign_para(para, "pcr_available", 1000*para$pop_sz/1000)
+    para <- assign_para(para, "ppe_coef", 1)
   }else if (para$setting==3) {
-    para$symptom_report <- 0.6
-    para$R0 <- R0_baseline * para$num_cc
-    para$theta <- 0.2
-    para$pcr_available <- 1000*para$pop_sz/1000 # 2*para$pop_sz/1000
-    para$ppe_coef <- 1
+    para <- assign_para(para, "symptom_report", 0.6)
+    para <- assign_para(para, "theta", 0.2)
+    para <- assign_para(para, "pcr_available", 1000*para$pop_sz/1000)
+    para <- assign_para(para, "ppe_coef", 1)
   }else print ("Parameter setting error")
 
   # subclinical rate
-  para$sub_clini_rate <- 0.3
-  para$asym_rate <- 0.2 # transmission rate of asymptomatic patient
-  para$death_rate <- c(0.002,0.002,0.01)
-  para$death_delay <- 10
+  para <- assign_para(para, "sub_clini_rate",  0.3)
+  para <- assign_para(para, "asym_rate",  0.2) # transmission rate of asymptomatic patient
+  para <- assign_para(para, "death_rate", c(0.002,0.002,0.01)) # death rate for three age groups
+  para <- assign_para(para, "death_delay", 10) # delay time for a death to be recorded
 
   # Parameters about Infected pts
-  para$ab_test_rate <- 0.7 # % accepted ab testing among detected (symptomatic) patients
-  para$pcr_test_rate <- 0.8 # % accepted pcr testing among detected (symptomatic) patients
+  para <- assign_para(para, "ab_test_rate", 0.7) # % accepted ab testing among detected (symptomatic) patients
+  para <- assign_para(para, "pcr_test_rate", 0.8)  # % accepted pcr testing among detected (symptomatic) patients
 
-  para$onsetiso <- 0.2 # Isolation compliance rate at onset based on symptom
-  para$abiso <-0.9 # Isolation compliance rate among ab testing positive
-  para$pcriso <-0.9 # Isolation compliance rate among pcr testing positive
+  para <- assign_para(para, "onsetiso", 0.2)  # Isolation compliance rate at onset based on symptom
+  para <- assign_para(para, "abiso", 0.9) # Isolation compliance rate among ab testing positive
+  para <- assign_para(para, "pcriso", 0.9) # Isolation compliance rate among pcr testing positive
 
-  para$delay_symptom <- 1 # days of delay after onset to detect symptomatic patients
-  para$delay_ab <- 8 # days of delay after onset to receive ab test and obtain result
-  para$delay_pcr <- 5 # days of delay after onset to report pcr test result
+  para <- assign_para(para, "delay_symptom", 1 ) # days of delay after onset to detect symptomatic patients
+  para <- assign_para(para, "delay_ab", 8) # days of delay after onset to receive ab test and obtain result
+  para <- assign_para(para, "delay_pcr", 4)  # days of delay after onset to report pcr test result
 
   # Parameters about tracing contects
-  para$tracing_cc_onset <- 3 # set how many days we trace close contact back after symptom-based patient detection
-  para$tracing_cc_ab <- para$delay_ab # set how many days we trace close contact back after a positive ab_test
-  para$tracing_cc_pcr <- para$delay_pcr # set how many days we trace close contact back after a positive ab_test
+  para <- assign_para(para, "tracing_cc_onset", 3)  # set how many days we trace close contact back after symptom-based patient detection
+  para <- assign_para(para, "tracing_cc_ab", 3)  # set how many days we trace close contact back after a positive ab_test
+  para <- assign_para(para, "tracing_cc_pcr", para$delay_pcr) # set how many days we trace close contact back after a positive PCR test
 
-  para$cc_success_symptom <- 0.85 # precentage close contact successfully traced after symptom-based patient detection
-  para$cc_success_ab <- 0.75 # precentage close contact successfully traced after positive ab test
-  para$cc_success_pcr <- 0.80 # precentage close contact successfully traced after positive pcr test
+  para <- assign_para(para, "cc_success_symptom", 0.85) # precentage close contact successfully traced after symptom-based patient detection
+  para <- assign_para(para, "cc_success_ab", 0.75)  # precentage close contact successfully traced after positive ab test
+  para <- assign_para(para, "cc_success_pcr", 0.80) # precentage close contact successfully traced after positive pcr test
 
-  para$qrate_symptom <- 0.5 # CC quarantine compliance rate based on symptom
-  para$qrate_ab <- 0.7 # CC quarantine compliance rate based on positive ab test
-  para$qrate_pcr <- 0.7 # CC quarantine compliance rate based on positive pcr test
+  para <- assign_para(para, "qrate_symptom", 0.5) # CC quarantine compliance rate based on symptom
+  para <- assign_para(para, "qrate_ab", 0.7) # CC quarantine compliance rate based on positive ab test
+  para <- assign_para(para, "qrate_pcr", 0.7)  # CC quarantine compliance rate based on positive pcr test
 
   # Parameters about testing tools
-  para$ab_rate <- function(x, t_onset) 1/(1 + exp(7+t_onset-x)) # seroconversion rate from infection day, based on the clinical paper from Yumei Wen
-  para$sensitivity_ab <- 0.9 # ab test sensitivity
-  para$sensitivity_pcr <- 0.999 # pcr test sensitivity
-  para$samplefailure_pcr <- 0.3 # pcr sampling failure
-  para$sensitivity_antig <- 0.8 # antigen sensitivity is 0.8
+  para <- assign_para(para, "ab_rate", function(x, t_onset) 1/(1 + exp(7+t_onset-x))) # seroconversion rate from infection day, based on the clinical paper from Yumei Wen
+  para <- assign_para(para, "sensitivity_ab", 0.9) # ab test sensitivity
+  para <- assign_para(para, "sensitivity_pcr", 0.999)  # pcr test sensitivity
+  para <- assign_para(para, "samplefailure_pcr", 0.3)  # pcr sampling failure
+  para <- assign_para(para, "sensitivity_antig", 0.8)  # antigen sensitivity is 0.8
 
   # adjust R0 for next generation matrix
   para <- R0_adjust(para)
@@ -366,10 +366,11 @@ network_generate <- function(para, output = "example", searched_clustering_numbe
       nw.ego <- nw_para[[1]]
       para.community <- nw_para[[2]]
 
+      clustering_effect <- (para.community$pop_sz/2*para.community$num_cc_scdst)*(1 - para.community$percent_HH_cc_scdst) * searched_clustering_number
       target.stats <- c(para$community.pop_sz/2 * para$num_cc_scdst * 0.9, para$community.pop_sz/2 * para$num_cc_scdst * para$percent_HH_cc_scdst,
-                        (para$age_mix_scdst/sum(para$age_mix_scdst) * para$community.pop_sz/2 * para$num_cc_scdst)[1:5])
+                        (para$age_mix_scdst/sum(para$age_mix_scdst) * para$community.pop_sz/2 * para$num_cc_scdst)[1:5], clustering_effect, clustering_effect)
       try({
-        suppressMessages(  est.community <- ergm(nw.ego ~ edges  + nodematch("family") + mm("age", levels2 = -6),
+        suppressMessages(  est.community <- ergm(nw.ego ~ edges  + nodematch("family") + mm("age", levels2 = -6) + absdiff("clustering_x", pow=2) + absdiff("clustering_y", pow=2),
                                         target.stats = target.stats,control = control.ergm(MCMLE.maxit = 400, SAN.maxit = 1000)) )
         ego.sim100 <- simulate(est.community,nsim = 100)
         sim.stats <- attr(ego.sim100,"stats")
@@ -377,6 +378,7 @@ network_generate <- function(para, output = "example", searched_clustering_numbe
         deviation_target_statistics <- mean(abs(trgt[1,] - trgt[2,])/trgt[2,])
         if(deviation_target_statistics > 0.05){
           est.community <- NA
+          searched_clustering_number <- searched_clustering_number + 1
         }
       })
 
@@ -385,7 +387,6 @@ network_generate <- function(para, output = "example", searched_clustering_numbe
         grid_id <- grid_id + 1
         }
     }
-
 
     nw.full <- initiate_nw(para)[[1]]
     suppressMessages( est.full <- ergm(nw.full ~ edges,

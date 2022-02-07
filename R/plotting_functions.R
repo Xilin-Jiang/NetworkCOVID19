@@ -49,8 +49,7 @@ plot_epidemic_curves <- function(results, title_fig = ""){
     labs(x= "Days from first importing case", y = "New case per day",title = title_fig)+
     scale_color_manual(values = c("Baseline" = red, "Strategy 1: RDT" = blue,
                                   "Strategy 2: PCR" = green, "Strategy 3: RDT & PCR" = purple)) +
-    theme(legend.position = "right", panel.background=element_blank()) +
-    ylim(c(0,8))
+    theme(legend.position = "right", panel.background=element_blank())
 
   return(plt)
 }

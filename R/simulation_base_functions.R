@@ -203,6 +203,18 @@ init_para <- function(setting = 2, country_id = 1, social_distancing_flg = 1, pa
     para <- assign_para(para, "HH_dist",  c(.00, .06, .17, .77) ) # afganistan
   }else print ("Parameter setting error")
 
+  ########################################################################################
+  # scale the contact number: if >15, simulate two rounds of infection each day
+  ########################################################################################
+  if(para$num_cc > 15 & para$num_cc <= 30){
+    para$Tnum_cc <- para$num_cc # create a separate variable for total contact number
+    para$cc_cyl <- 2 # use 2 simulated networks, and two rounds of infection within one day
+    para$num_cc <- para$Tnum_cc/para$cc_cyl
+  }else if(para$num_cc > 30){
+    print("we don't support contact number above 30, please use smaller number.")
+    break
+  }
+
   # load the contact structure
   para <- assign_para(para, "age_mix", contact_all[[country_id]])
   para <- assign_para(para, "Home_age_mix", contact_home[[country_id]])

@@ -8,7 +8,7 @@ init_para(
   setting = 2,
   country_id = 1,
   social_distancing_flg = 1,
-  contact_number = NA
+  para = list()
 )
 }
 \arguments{

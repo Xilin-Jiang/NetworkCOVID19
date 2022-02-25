@@ -45,7 +45,12 @@ NULL
 #' use [[4]] to access results of RDT + PCR containment.
 #' @export
 #'
-#' @examples results <- network_covid_simulate(rep_num = 1, network_num = 1, output = "example", para = NA)
+#' @examples
+#' para <- list()
+#' para$community.pop_sz <- 200
+#' para$pop_sz <- 400
+#' para <- init_para(para = para)
+#' results <- network_covid_simulate(rep_num = 1, network_num = 1, output = "example", para = para)
 network_covid_simulate <- function(rep_num = 1, network_num = 20, output = "example", para = NA, len_sim = 100) {
   # this is a wrapper function for simulating
   if(output == "example"){
@@ -53,7 +58,7 @@ network_covid_simulate <- function(rep_num = 1, network_num = 20, output = "exam
   }else{
     print(paste0("Using ", output, " as the output prefix."))
   }
-  if(is.na(para)){
+  if(is.na(para)[1]){
     print(paste0("No population specified, using the default parameter setting"))
     para <- init_para()
   }
@@ -102,7 +107,7 @@ network_covid_simulate <- function(rep_num = 1, network_num = 20, output = "exam
   for(rep_id in 1:rep_num){
     NW_SIM <- NA
     sim_rslt <- list()
-    while(is.na(NW_SIM)){
+    while(is.na(NW_SIM)[1]){
       idx <- sample(1:network_num, 1)
       load(paste0("Networks/", output, ".",idx, ".network.Rdata"))
     }
@@ -150,7 +155,8 @@ assign_para <- function(para, name, value){
 #' @return a list contains all parameters at default setting for each scenatrio
 #' @export
 #'
-#' @examples # initialise a normal para <- init_para()
+#' @examples # initialise a default parameter set
+#' para <- init_para()
 init_para <- function(setting = 2, country_id = 1, social_distancing_flg = 1, para = list()){
 
   ###############################
@@ -354,10 +360,13 @@ R0_adjust <- function(para){
 #' with the synthetic population age and family information.
 #' @export
 #'
-#' @examples para <- init_para()
+#' @examples
+#' para <- list()
 #' para$community.pop_sz <- 200
+#' para$pop_sz <- 400
+#' para <- init_para(para = para)
 #' nw <- network_generate(para)
-#' plot(simulate(nw[[1]]))
+#' plot(simulate(nw[[1]][[1]]))
 network_generate <- function(para, output = "example", searched_clustering_number = 4 ){
 
   if(para$community.pop_sz < para$pop_sz){
@@ -455,7 +464,7 @@ network_generate <- function(para, output = "example", searched_clustering_numbe
     # step 1: fit a small ERGM network to get the coefficients
     #################################################################################
     # perform grid search to get the local clustering coefficient
-    while(is.na(est1)){
+    while(is.na(est1)[1]){
       clustering_effect <- (para$pop_sz/2*para$num_cc_scdst)*(1 - para$percent_HH_cc_scdst) * searched_clustering_number #  14 (25) 23 (20)
       target.stats <- c(para$pop_sz/2 * para$num_cc_scdst, para$pop_sz/2 * para$num_cc_scdst * para$percent_HH_cc_scdst,
                         (para$age_mix_scdst/sum(para$age_mix_scdst) * para$pop_sz/2 * para$num_cc_scdst)[1:5], clustering_effect, clustering_effect)
@@ -506,6 +515,10 @@ aggregate_simulation <- function(est_nw, para){
 
 initiate_nw <- function(para){
   para$AGE <- unlist(sapply(1:length(para$age_dist), function(x) rep(x,round(para$age_dist[x] * para$pop_sz))))
+  if(length(para$AGE) < para$pop_sz){ # there could be rounding issue
+    new_sp <- sample(c(1,2,3), size = (para$pop_sz - length(para$AGE)),  prob = para$age_dist)
+    para$AGE <- c(para$AGE, new_sp)
+  }
   stopifnot(length(para$AGE) == para$pop_sz)
   nw <- network::network.initialize(n = para$pop_sz , directed = FALSE)
   # specify house hold
@@ -577,12 +590,14 @@ initiate_nw <- function(para){
 #' @return a dataframe contains the simulated results.
 #' @export
 #'
-#' @examples para <- init_para()
+#' @examples
+#' para <- list()
 #' para$community.pop_sz <- 200
+#' para <- init_para(para = para)
 #' nw <- network_generate(para)
 #' rslt <- simulate_transmission(PCR = FALSE, RDT = FALSE) # simulate a transmission without any containment
 simulate_transmission <- function(NW_SIM = NA, input_location = "Networks/example.network.Rdata", PCR = F, RDT = F, len_sim = 100){
-  if(is.na(NW_SIM)){
+  if(is.na(NW_SIM)[1]){
     if(stringr::str_detect(input_location, ".network.Rdata")){
       load(input_location)
     }else{
@@ -638,12 +653,27 @@ simulate_transmission <- function(NW_SIM = NA, input_location = "Networks/exampl
   Z[init_idx] <- F
   for(t in 1:len_sim){
     C_lst[[t]] <- C
+
+    # add another round of infection to get the correct contact scaling
+    if(!is.null(para$cc_cyl) && para$cc_cyl > 1){
+      C_WD <- C_update(C, Q, ergm.fitting, para, WD_flg = T)
+      lst <- I_O_update(I, Q, C_WD, O, Z, trace_inf_n, para, WD_flg = T)
+      I <- lst[[1]]
+      O <- lst[[2]]
+      Z <- lst[[3]]
+      trace_inf_n <- lst[[4]]
+    }
     C <- C_update(C, Q, ergm.fitting, para)
     lst <- I_O_update(I, Q, C, O, Z, trace_inf_n, para)
     I <- lst[[1]]
     O <- lst[[2]]
     Z <- lst[[3]]
     trace_inf_n <- lst[[4]]
+    # combine the contact network from two rounds of simulation
+    if(!is.null(para$cc_cyl) && para$cc_cyl > 1){
+      C <- C_unify(C, C_WD)
+    }
+
     I_lst[[t]] <- I
     O_lst[[t]] <- O
     lst1 <- Q_update(I, Q, C, O, Z, RDT_n, PCR_n, para, flg_ab = RDT, flg_multi_ab = FALSE, flg_PCR=PCR, PCR_need_yesterday)
@@ -668,7 +698,7 @@ simulate_transmission <- function(NW_SIM = NA, input_location = "Networks/exampl
   # plot the daily new case
   ab_new_daily <- rep(NA, len_sim)
   cap <- rep(NA, len_sim) # store the Q numbers
-  ab_new_daily[1] <- para$E_0
+  ab_new_daily[1] <- para$pop_sz - sum(is.na(I_lst[[1]]))
   cap[1] <- sum(!is.na(Q_lst[[1]]) & Q_lst[[t]] < 14)
   for(t in 2:len_sim){
     ab_new_daily[t] <- sum(is.na(I_lst[[t-1]]))  - sum(is.na(I_lst[[t]]))
@@ -683,9 +713,11 @@ simulate_transmission <- function(NW_SIM = NA, input_location = "Networks/exampl
 ###############################################
 # update C
 # the function below provide a way to update daily contact
-C_update <- function(C, Q, est_nw, para){
+C_update <- function(C, Q, est_nw, para, WD_flg = F){
   # one day pass; C is 12 when just infected, then C decrease by 1 everyday pass
-  C <- pmax(C-1, 0)
+  if(!WD_flg){
+    C <- pmax(C-1, 0) # if within day flag WD_flg is true, don't increase the day
+  }
   # then update close contact of this day. we assume the close contact to happen between the people around
   ##########################
   # simulated an actual net from the egocentric estimation
@@ -702,9 +734,20 @@ C_update <- function(C, Q, est_nw, para){
   C[cbind(edge_lst[true_cc,1], edge_lst[true_cc,2])] <- 12
   return(C)
 }
+
+# for multiple infection round per day -- use below function to unify the contact structure
+C_unify <- function(C_ref, C_WD){
+  # insert all the C_WD == 12 into C_ref
+  C_ref[which(C_WD == 12)] <- 12
+  return(C_ref)
+}
+
+
 # update the Infected individual & keep an record of the incubation time
-I_O_update <- function(I, Q, C, O, Z, trace_inf_n, para){
-  I <- I + 1
+I_O_update <- function(I, Q, C, O, Z, trace_inf_n, para, WD_flg = F){
+  if(!WD_flg){
+    I <- I + 1 # if within day flag WD_flg is true, don't increase the day
+  }
   for(i in 1:para$pop_sz){
     # i is the infection source, idx is the infected
     # cc_idx find the infected individual and he has contact someone that day

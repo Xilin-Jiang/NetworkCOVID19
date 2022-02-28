@@ -640,7 +640,8 @@ simulate_transmission <- function(NW_SIM = NA, input_location = "Networks/exampl
   rdt <- matrix(0, len_sim)
   pcr <- matrix(0, len_sim)
 
-  C_lst <- list()
+  # stop saving list of C matrix as it consume lots of disk
+  # C_lst <- list()
   O_lst <- list()
   I_lst <- list()
   Q_lst <- list()
@@ -652,7 +653,7 @@ simulate_transmission <- function(NW_SIM = NA, input_location = "Networks/exampl
   O[init_idx] <- incub(para$E_0)
   Z[init_idx] <- F
   for(t in 1:len_sim){
-    C_lst[[t]] <- C
+    # C_lst[[t]] <- C
 
     # add another round of infection to get the correct contact scaling
     if(!is.null(para$cc_cyl) && para$cc_cyl > 1){

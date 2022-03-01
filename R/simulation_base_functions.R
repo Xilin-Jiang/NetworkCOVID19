@@ -71,11 +71,18 @@ network_covid_simulate <- function(rep_num = 1, network_num = 20, output = "exam
                para$age_dist[2]*100,"%;  25+: ", para$age_dist[3]*100, "%"))
   print(paste0("Household size distribution: 1: ", para$HH_dist[1]*100, "%;  2-3: ",
                para$HH_dist[2]*100,"%;  4-5: ", para$HH_dist[3]*100, "%;  6+: ", para$HH_dist[4]*100, "%"))
-  print(paste0("Number of contact: ", para$num_cc))
+  if(is.null(para$cc_cyl)){
+    print(paste0("Number of contact: ", para$num_cc))
+  }else{
+    print(paste0("Number of contact: ", para$num_cc * para$cc_cyl))
+  }
   print(paste0("Proportion of non-household contact reduced by physical distancing: ", (1-para$Non_HH_CC_rate)*100, "%"))
   print(paste0("Initial cases: ", para$E_0))
-  print(paste0("R0: ", para$R0))
-
+  if(is.null(para$cc_cyl)){
+    print(paste0("R0: ", para$R0))
+  }else{
+    print(paste0("R0: ", para$R0 * para$cc_cyl))
+  }
   # generate networks
   print("-----------------------------------------------------------")
   print("-------- synthetic population simulation ------------------")
@@ -108,8 +115,10 @@ network_covid_simulate <- function(rep_num = 1, network_num = 20, output = "exam
     NW_SIM <- NA
     sim_rslt <- list()
     while(is.na(NW_SIM)[1]){
-      idx <- sample(1:network_num, 1)
-      load(paste0("Networks/", output, ".",idx, ".network.Rdata"))
+      try({ # there might be error when loading network
+        idx <- sample(1:network_num, 1)
+        load(paste0("Networks/", output, ".",idx, ".network.Rdata"))
+      })
     }
     sim_rslt[[1]] <- simulate_transmission(NW_SIM = NW_SIM, PCR = F, RDT = F, len_sim = len_sim)
     print(paste0("No containment simulation: ", rep_id))

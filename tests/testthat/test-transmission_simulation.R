@@ -4,14 +4,14 @@ test_that("number of contact scaling to large number", {
   para <- list()
   para$num_cc <- 20
   para$pop_sz <- 200
-  para <- init_para(2, 1, 1, para = para)
+  para <- init_para(2, 1, 5, para = para)
   expect_equal(para$num_cc * para$cc_cyl, para$Tnum_cc)
   nw <- network_generate(para)
 
   NW_SIM <- nw
   len_sim <- 10
-  PCR <- F
-  RDT <- F
+  PCR <- T
+  RDT <- T
 
   ergm.fitting <- NW_SIM[[1]]
   para <- NW_SIM[[2]]

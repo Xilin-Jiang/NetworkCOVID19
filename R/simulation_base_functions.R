@@ -725,9 +725,7 @@ simulate_transmission <- function(NW_SIM = NA, input_location = "Networks/exampl
 # the function below provide a way to update daily contact
 C_update <- function(C, Q, est_nw, para, WD_flg = F){
   # one day pass; C is 12 when just infected, then C decrease by 1 everyday pass
-  if(!WD_flg){
-    C <- pmax(C-1, 0) # if within day flag WD_flg is true, don't increase the day
-  }
+  C <- pmax(C-1, 0) # if within day flag WD_flg is true, don't increase the day
   # then update close contact of this day. we assume the close contact to happen between the people around
   ##########################
   # simulated an actual net from the egocentric estimation

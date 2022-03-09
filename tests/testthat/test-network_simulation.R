@@ -23,7 +23,7 @@ test_that("two methods of fitting network", {
   expect_equal(c(sum(sim_rslt$quarantine_daily), sum(sim_rslt$RDT_used), sum(sim_rslt$PCR_used)), c(0,0,0))
   # death should be equal to case, when death_rate = 1
   expect_equal(sum(sim_rslt$death_daily)+para$E_0, sum(sim_rslt$new_daily_case))
-
+  expect_equal(sum(sim_rslt$death_daily)+para$E_0, sum(sim_rslt$new_daily_case))
   # fitting a ERGM same size as target population
   para <- list()
   para$community.pop_sz <- 200
@@ -53,7 +53,7 @@ test_that("population size setting", {
   }
 })
 
-test_that("wrapper function", {
+test_that("wrapper function test no quarantine clost contact", {
   para <- list()
   para$community.pop_sz <- 100
   para$pop_sz <- 300
